@@ -1,70 +1,101 @@
-import { Image, StyleSheet, Platform } from 'react-native';
+import {
+  Image,
+  StyleSheet,
+  Platform,
+  useWindowDimensions,
+  View,
+} from "react-native";
+import { useHeaderHeight } from "@react-navigation/elements";
+import {
+  GestureHandlerRootView,
+  GestureDetector,
+  Gesture,
+} from "react-native-gesture-handler";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from "react-native-reanimated";
+import UtxoFlow from "@/components/utxo-flow";
+import { Colors } from "@/components/colors";
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+function clamp(value: number, min: number, max: number) {
+  "worklet";
+
+  return Math.min(Math.max(min, value), max);
+}
 
 export default function HomeScreen() {
+  const topHeaderHeight = useHeaderHeight();
+  const { width, height } = useWindowDimensions();
+  const GRAPH_HEIGHT = height - topHeaderHeight + 20;
+  const GRAPH_WIDTH = width;
+
+  const canvasSize = { width: GRAPH_WIDTH * 1.5, height: GRAPH_HEIGHT }; // Reduced from 3 to 1.5
+  const centerX = canvasSize.width / 3; // Changed from 4 to 3
+  const centerY = canvasSize.height / 2;
+  const sankeyWidth = canvasSize.width;
+  const sankeyHeight = canvasSize.height - 200;
+
+  // Add shared values for gestures
+  const scale = useSharedValue(0.8); // Changed from 0.6 to 0.8
+  const savedScale = useSharedValue(0.8);
+  const translateX = useSharedValue(-width * 0.4); // Changed from 0.8 to 0.4
+  const translateY = useSharedValue(0);
+  const savedTranslateX = useSharedValue(-width * 0.4);
+  const savedTranslateY = useSharedValue(0);
+
+  // Create gesture handlers
+  const pinchGesture = Gesture.Pinch()
+    .onUpdate((event) => {
+      scale.value = clamp(savedScale.value * event.scale, 0.5, 2);
+    })
+    .onEnd(() => {
+      savedScale.value = scale.value;
+    });
+
+  const panGesture = Gesture.Pan()
+    .onUpdate((event) => {
+      translateX.value = savedTranslateX.value + event.translationX;
+      translateY.value = savedTranslateY.value + event.translationY;
+    })
+    .onEnd(() => {
+      savedTranslateX.value = translateX.value;
+      savedTranslateY.value = translateY.value;
+    });
+
+  const composed = Gesture.Simultaneous(pinchGesture, panGesture);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: scale.value },
+    ],
+  }));
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({ ios: 'cmd + d', android: 'cmd + m' })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <View style={styles.container}>
+      <GestureDetector gesture={composed}>
+        <Animated.View
+          style={[{ width: sankeyWidth, height: sankeyHeight }, animatedStyle]}
+        >
+          <UtxoFlow
+            width={sankeyWidth}
+            height={sankeyHeight}
+            centerX={centerX}
+            centerY={centerY}
+            walletAddress={"1Lbcfr7sAHTD9CgdQo3HTMTkV8LK4ZnX71"}
+          />
+        </Animated.View>
+      </GestureDetector>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  container: {
+    flex: 1,
+    backgroundColor: Colors.gray[900],
   },
 });
